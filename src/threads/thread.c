@@ -208,7 +208,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  thread_yield_if_not_max();
   return tid;
 }
 
@@ -228,6 +228,28 @@ thread_block (void)
   schedule ();
 }
 
+
+/* comparator for thread priorities*/
+bool
+priority_comparator (const struct list_elem *a,
+                     const struct list_elem *b,
+                     void *aux UNUSED)
+{
+  return list_entry (a, struct thread, elem)->priority >
+         list_entry (b, struct thread, elem)->priority;
+}
+
+
+/*(const struct  list_elem *t1,
+					 const struct  list_elem *t2
+					 void *aux UNUSED)
+{
+	bool result = (list_entry(t1, struct threads, elem)->priority >
+					list_entry(t2, struct threads, elem)->priority);
+	return result;
+}*/
+
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -245,7 +267,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  //list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -316,10 +339,40 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    //list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, priority_comparator, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+
+/* yields cpu if current thread does not have the highest priority in the 
+ready queue8*/
+void 
+thread_yield_if_not_max(void) {
+	int max = -1;
+
+	if (!list_empty(&ready_list)) {
+		max = (list_entry(list_begin(&ready_list), struct thread, elem))
+		->priority;
+	}
+
+	if (max > thread_get_priority()) {
+		thread_yield();
+	}
+
+}
+
+/* fix the ordering of ready list when a thread changes its priority */
+void
+thread_reinsert_to_rl(struct thread *t) {
+	if (t->status == THREAD_READY) {
+		intr_get_level() == INTR_OFF;
+
+		list_remove(&t->elem);
+		list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL);
+	}
+
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -339,11 +392,14 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's priority to NEW_PRIORITY. 
+   sets the base priority*/
 void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_reinsert_to_rl(thread_current);
+  thread_yield_if_not_max();
 }
 
 /* Returns the current thread's priority. */
