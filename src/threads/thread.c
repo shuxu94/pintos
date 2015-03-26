@@ -375,6 +375,20 @@ thread_reinsert_to_rl(struct thread *t) {
 
 }
 
+void
+thread_update_donated_priority(struct thread *t) {
+	enum intr_level old_level = intr_disable ();
+	int result = -1;
+ 	if (list_begin (&t->donated_to_me) != list_end (&t->donated_to_me))
+    {
+      struct thread *top = list_entry (list_begin (&t->donated_to_me),
+                                       struct thread, donation_elem);
+      result = get_thread_priority(top);
+    }
+ 	intr_set_level (old_level);
+ 	t->donated_priority = result;
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -404,9 +418,27 @@ thread_set_priority (int new_priority)
 
 /* Returns the current thread's priority. */
 int
+get_thread_priority (struct thread *t) 
+{
+  //return thread_current ()->priority;
+	if (t->priority > t->donated_priority) {
+		return t->priority;
+	} else {
+		return t->donated_priority;
+	}
+}
+
+/* Returns the current thread's priority. */
+int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  //return thread_current ()->priority;
+	struct thread *t = thread_current();
+	if (t->priority > t->donated_priority) {
+		return t->priority;
+	} else {
+		return t->donated_priority;
+	}
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -524,6 +556,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->donated_priority = -1;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }

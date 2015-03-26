@@ -93,6 +93,11 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* donations stuff*/
+    int donated_priority;
+    struct list donated_to_me;
+    struct list_elem donation_elem;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -136,6 +141,10 @@ bool priority_comparator (const struct list_elem *a,
 /* piority scheduler */
 void thread_yield_if_not_max(void);
 void thread_reinsert_to_rl(struct thread *t);
+
+/* donations */
+void thread_update_donated_priority(struct thread *t);
+int get_thread_priority (struct thread *t);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
