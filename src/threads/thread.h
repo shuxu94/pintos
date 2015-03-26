@@ -98,6 +98,8 @@ struct thread
     struct list donated_to_me;
     struct list_elem donation_elem;
 
+    struct lock *waiting_on;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -145,6 +147,8 @@ void thread_reinsert_to_rl(struct thread *t);
 /* donations */
 void thread_update_donated_priority(struct thread *t);
 int get_thread_priority (struct thread *t);
+void thread_donate_priority(struct thread *t);
+void thread_get_back_donation(struct thread *t);
 
 int thread_get_priority (void);
 void thread_set_priority (int);

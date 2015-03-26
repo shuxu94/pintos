@@ -235,8 +235,8 @@ priority_comparator (const struct list_elem *a,
                      const struct list_elem *b,
                      void *aux UNUSED)
 {
-  return list_entry (a, struct thread, elem)->priority >
-         list_entry (b, struct thread, elem)->priority;
+  return get_thread_priority(list_entry (a, struct thread, elem)) >
+         get_thread_priority(list_entry (b, struct thread, elem));
 }
 
 
@@ -367,8 +367,6 @@ thread_yield_if_not_max(void) {
 void
 thread_reinsert_to_rl(struct thread *t) {
 	if (t->status == THREAD_READY) {
-		intr_get_level() == INTR_OFF;
-
 		list_remove(&t->elem);
 		list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL);
 	}
@@ -404,6 +402,43 @@ thread_foreach (thread_action_func *func, void *aux)
       struct thread *t = list_entry (e, struct thread, allelem);
       func (t, aux);
     }
+}
+
+void
+thread_donate_priority(struct thread *t) { 
+	/*
+	thread_update_donated_priority(t);
+
+	if (t->waiting_on != NULL) {
+		struct thread *holder = t->waiting_on->holder;
+		ASSERT(holder != t);
+
+		if (thread_current() != t) {
+			thread_get_back_donation(t);
+		}
+
+		if (holder != NULL) {
+			thread_update_donated_priority(holder);
+			list_insert_ordered(&holder->donated_to_me,
+								&t->donation_elem,
+								priority_comparator, NULL);
+			thread_donate_priority(holder);
+		} else {
+			return;
+		}
+	} else {
+		return;
+	} */
+
+}
+
+void 
+thread_get_back_donation(struct thread *t) {
+	/*
+	if(t->donation_elem.next != NULL) {
+		list_remove(&t->donation_elem);
+		t->donation_elem.next = NULL;
+	} */
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. 
