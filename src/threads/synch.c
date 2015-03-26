@@ -112,12 +112,17 @@ sema_up (struct semaphore *sema)
 
   ASSERT (sema != NULL);
 
-  old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+  old_level = intr_disable();
+
+  if (!list_empty (&sema->waiters)) {
+    struct list_elem *waiter = list_min(&sema->waiters, priority_comparator, NULL);
+    list_remove(waiter);
+    thread_unblock (list_entry (waiter, struct thread, elem));
+  }
   sema->value++;
   intr_set_level (old_level);
+
+  thread_yield_if_not_max();
 }
 
 static void sema_test_helper (void *sema_);
@@ -156,7 +161,7 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
