@@ -90,6 +90,9 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+    int nice; // bsd nice value
+    int cpu_est; // cpu usage estimation
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -140,15 +143,19 @@ bool priority_comparator (const struct list_elem *a,
                      const struct list_elem *b,
                      void *aux UNUSED);
 
+
 /* piority scheduler */
 void thread_yield_if_not_max(void);
-void thread_reinsert_to_rl(struct thread *t);
+//void thread_reinsert_to_rl(struct thread *t);
 
 /* donations */
 void thread_update_donated_priority(struct thread *t);
 int get_thread_priority (struct thread *t);
 void thread_donate_priority(struct thread *t);
 void thread_get_back_donation(struct thread *t);
+bool donation_comparator (const struct list_elem *a,
+                     const struct list_elem *b,
+                     void *aux UNUSED);
 
 int thread_get_priority (void);
 void thread_set_priority (int);

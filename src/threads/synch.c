@@ -203,16 +203,19 @@ lock_acquire (struct lock *lock)
   //ASSERT (thread_current ()->waiting_on == NULL);
 
   enum intr_level old_level = intr_disable ();
-
-  /*
-  if (lock->holder != NULL && !thread_mlfqs) {
-    thread_current()->waiting_on = lock;
-    thread_donate_priority(thread_current());
-  }*/
+  
+  /* If the lock is currently held by someone, then we need to invoke
+     thread_donate_priority to donate our priority to that special
+     someone. */  
+  if (!thread_mlfqs && lock->holder != NULL)
+    {
+      thread_current ()->waiting_on = lock;
+      thread_donate_priority (thread_current ());
+    }
 
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
 
+  lock->holder = thread_current ();
   thread_current ()->waiting_on = NULL;
 
   intr_set_level (old_level);
@@ -247,12 +250,14 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
   enum intr_level old_level = intr_disable ();
 
   lock->holder = NULL;
-  /*
+  
+  
   if (!thread_mlfqs) {
     struct list_elem *el;
 
@@ -266,7 +271,7 @@ lock_release (struct lock *lock)
     }
 
     thread_update_donated_priority(thread_current());
-  } */
+  } 
 
   sema_up (&lock->semaphore);
   intr_set_level (old_level);

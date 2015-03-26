@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed-point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -353,8 +354,7 @@ thread_yield_if_not_max(void) {
 	int max = -1;
 
 	if (!list_empty(&ready_list)) {
-		max = (list_entry(list_begin(&ready_list), struct thread, elem))
-		->priority;
+		max = get_thread_priority(list_entry(list_begin(&ready_list), struct thread, elem));
 	}
 
 	if (max > thread_get_priority()) {
@@ -364,7 +364,7 @@ thread_yield_if_not_max(void) {
 }
 
 /* fix the ordering of ready list when a thread changes its priority */
-void
+static void
 thread_reinsert_to_rl(struct thread *t) {
 	if (t->status == THREAD_READY) {
 		list_remove(&t->elem);
@@ -373,18 +373,35 @@ thread_reinsert_to_rl(struct thread *t) {
 
 }
 
+
+static int
+thread_update_donated_priority_helper(struct thread *t)
+{
+  ASSERT (is_thread (t));
+  
+  enum intr_level old_level = intr_disable ();
+  int return_value = -1;
+  if (!list_empty(&t->donated_to_me))
+    {
+      struct thread *top = list_entry (list_min(&t->donated_to_me, donation_comparator, NULL),
+                                       struct thread, donation_elem);
+      return_value = get_thread_priority(top);
+    }
+  intr_set_level (old_level);
+  return return_value;
+}
+
 void
 thread_update_donated_priority(struct thread *t) {
-	enum intr_level old_level = intr_disable ();
-	int result = -1;
- 	if (list_begin (&t->donated_to_me) != list_end (&t->donated_to_me))
-    {
-      struct thread *top = list_entry (list_begin (&t->donated_to_me),
-                                       struct thread, donation_elem);
-      result = get_thread_priority(top);
-    }
- 	intr_set_level (old_level);
- 	t->donated_priority = result;
+  ASSERT (is_thread (t));
+  
+  enum intr_level old_level = intr_disable ();
+  
+  int donated_priority = thread_update_donated_priority_helper(t);
+  t->donated_priority = donated_priority;
+
+  thread_reinsert_to_rl(t);
+  intr_set_level (old_level);
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -404,9 +421,19 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* comparator for thread priorities*/
+bool
+donation_comparator (const struct list_elem *a,
+                     const struct list_elem *b,
+                     void *aux UNUSED)
+{
+  return get_thread_priority(list_entry (a, struct thread, donation_elem)) >
+         get_thread_priority(list_entry (b, struct thread, donation_elem));
+}
+
 void
 thread_donate_priority(struct thread *t) { 
-	/*
+	
 	thread_update_donated_priority(t);
 
 	if (t->waiting_on != NULL) {
@@ -421,24 +448,24 @@ thread_donate_priority(struct thread *t) {
 			thread_update_donated_priority(holder);
 			list_insert_ordered(&holder->donated_to_me,
 								&t->donation_elem,
-								priority_comparator, NULL);
+								donation_comparator, NULL);
 			thread_donate_priority(holder);
-		} else {
-			return;
 		}
-	} else {
-		return;
-	} */
+	}
+
+	return;
+
+
 
 }
 
 void 
 thread_get_back_donation(struct thread *t) {
-	/*
+	
 	if(t->donation_elem.next != NULL) {
 		list_remove(&t->donation_elem);
 		t->donation_elem.next = NULL;
-	} */
+	} 
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. 
@@ -476,11 +503,27 @@ thread_get_priority (void)
 	}
 }
 
+void
+thread_calculate_priority_bsd (struct thread *t, void *aux UNUSED)
+{
+  ASSERT (is_thread (t));
+  ASSERT (thread_mlfqs);
+
+  /* Calculate the new priority of the thread */
+  t->priority = PRI_MAX
+                - fixed_point_round_nearest (t->cpu_est / 4)
+                - (t->nice * 2);
+}
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) 
-{
-  /* Not yet implemented. */
+{  
+	ASSERT(thread_mlfqs);
+ 	thread_current ()->nice = nice;  
+ 	thread_calculate_priority_bsd(thread_current (), NULL);
+ 	thread_reinsert_to_rl(thread_current ());
+ 	thread_yield_if_not_max(); /* Not yet implemented. */
 }
 
 /* Returns the current thread's nice value. */
@@ -488,7 +531,8 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
+
 }
 
 /* Returns 100 times the system load average. */
@@ -496,7 +540,8 @@ int
 thread_get_load_avg (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  //return 100 * fixed_point_round_nearest (load_avg);
+	return 0;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -504,9 +549,10 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  //return 100 * fixed_point_round_nearest (thread_current ()->cpu_est);
+	return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -593,6 +639,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->donated_priority = -1;
   t->magic = THREAD_MAGIC;
+  list_init (&t->donated_to_me);
+
   list_push_back (&all_list, &t->allelem);
 }
 
