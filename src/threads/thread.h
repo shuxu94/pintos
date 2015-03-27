@@ -160,9 +160,14 @@ bool donation_comparator (const struct list_elem *a,
 int thread_get_priority (void);
 void thread_set_priority (int);
 
+/* bsd scheduling */
+void thread_calculate_priority (struct thread *t, void *aux UNUSED);
+
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 #endif /* threads/thread.h */
+int get_ready_thread_number(void);
+void thread_update_bsd(void);
