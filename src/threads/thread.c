@@ -374,23 +374,26 @@ thread_reinsert_to_rl(struct thread *t) {
 }
 
 
-static int
-thread_update_donated_priority_helper(struct thread *t)
+void
+thread_update_donated_priority(struct thread *t)
 {
   ASSERT (is_thread (t));
   
   enum intr_level old_level = intr_disable ();
-  int return_value = -1;
+  int result = -1;
   if (!list_empty(&t->donated_to_me))
     {
       struct thread *top = list_entry (list_min(&t->donated_to_me, donation_comparator, NULL),
                                        struct thread, donation_elem);
-      return_value = get_thread_priority(top);
+      result = get_thread_priority(top);
     }
+
+  t->donated_priority = result;
+  thread_reinsert_to_rl(t);
   intr_set_level (old_level);
-  return return_value;
 }
 
+/*
 void
 thread_update_donated_priority(struct thread *t) {
   ASSERT (is_thread (t));
@@ -400,9 +403,8 @@ thread_update_donated_priority(struct thread *t) {
   int donated_priority = thread_update_donated_priority_helper(t);
   t->donated_priority = donated_priority;
 
-  thread_reinsert_to_rl(t);
   intr_set_level (old_level);
-}
+} */
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
